@@ -1,0 +1,109 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "MCJ_Shiftlock"
+gui.ResetOnSpawn = false
+
+-- Biến cho Shiftlock
+local shiftlockEnabled = false
+local shiftlockConnection = nil
+
+-- Tạo GUI
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 120, 0, 60)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,35)
+frame.Visible = true
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+
+local stroke = Instance.new("UIStroke", frame)
+stroke.Thickness = 1.4
+stroke.Color = Color3.fromRGB(0,255,180)
+stroke.Transparency = 0.3
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "MCJ SHIFTLOCK"
+title.TextColor3 = Color3.fromRGB(0,255,180)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+
+local shiftlockBtn = Instance.new("TextButton", frame)
+shiftlockBtn.Size = UDim2.new(0.9, 0, 0, 25)
+shiftlockBtn.Position = UDim2.new(0.05, 0, 0, 30)
+shiftlockBtn.Text = "OFF"
+shiftlockBtn.BackgroundColor3 = Color3.fromRGB(50,50,70)
+shiftlockBtn.TextColor3 = Color3.fromRGB(255,60,60)
+shiftlockBtn.Font = Enum.Font.GothamBold
+shiftlockBtn.TextSize = 12
+Instance.new("UICorner", shiftlockBtn).CornerRadius = UDim.new(0,6)
+
+-- Hàm cập nhật hướng nhân vật theo camera
+local function updateCharacterCFrame()
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local hrp = character.HumanoidRootPart
+        local camLook = workspace.CurrentCamera.CFrame.LookVector
+        local hrpPos = hrp.Position
+        hrp.CFrame = CFrame.new(hrpPos, hrpPos + Vector3.new(camLook.X, 0, camLook.Z))
+    end
+end
+
+-- Hàm bật Shiftlock
+local function enableShiftLock()
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        character.Humanoid.AutoRotate = false
+    end
+    
+    shiftlockConnection = RunService.RenderStepped:Connect(function()
+        updateCharacterCFrame()
+    end)
+end
+
+-- Hàm tắt Shiftlock
+local function disableShiftLock()
+    if shiftlockConnection then
+        shiftlockConnection:Disconnect()
+        shiftlockConnection = nil
+    end
+    
+    local character = player.Character
+    if character and character:FindFirstChild("Humanoid") then
+        character.Humanoid.AutoRotate = true
+    end
+end
+
+-- Xử lý khi nhân vật thay đổi
+player.CharacterAdded:Connect(function(character)
+    if shiftlockEnabled then
+        character:WaitForChild("Humanoid")
+        enableShiftLock()
+    end
+end)
+
+-- Nút bật/tắt Shiftlock
+shiftlockBtn.MouseButton1Click:Connect(function()
+    if shiftlockEnabled then
+        shiftlockEnabled = false
+        disableShiftLock()
+        shiftlockBtn.Text = "OFF"
+        shiftlockBtn.BackgroundColor3 = Color3.fromRGB(50,50,70)
+        shiftlockBtn.TextColor3 = Color3.fromRGB(255,60,60)
+    else
+        shiftlockEnabled = true
+        enableShiftLock()
+        shiftlockBtn.Text = "ON"
+        shiftlockBtn.BackgroundColor3 = Color3.fromRGB(20,100,50)
+        shiftlockBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    end
+end)
+
+print("[MCJ] Shiftlock GUI đã load thành công!")
