@@ -1,0 +1,985 @@
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "MCJ_Hub_MoonUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Biến lưu trạng thái
+local xrayEnabled = false
+local espBaseEnabled = false
+local developEspEnabled = false
+local antiLagEnabled = false
+
+-- Biến connections
+local descendantConnection = nil
+local developEspConnection = nil
+local antiLagConnections = {}
+
+-- Biến lưu trữ
+local originalTransparency = {}
+local lteInstances = {}
+local lastUpdateTime = 0
+local updateInterval = 1
+
+-- Tạo background blur effect
+local blur = Instance.new("BlurEffect")
+blur.Size = 0
+blur.Parent = Lighting
+
+-- Tạo main container với style Moon UI
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0, 500, 0, 600)
+main.Position = UDim2.new(0.5, -250, 0.5, -300)
+main.BackgroundColor3 = Color3.fromRGB(13, 17, 23)
+main.BackgroundTransparency = 0.1
+main.Visible = false
+main.Active = true
+main.Draggable = true
+
+local mainCorner = Instance.new("UICorner", main)
+mainCorner.CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", main)
+mainStroke.Thickness = 1
+mainStroke.Color = Color3.fromRGB(48, 54, 61)
+mainStroke.Transparency = 0.3
+
+-- Top bar với gradient
+local topBar = Instance.new("Frame", main)
+topBar.Size = UDim2.new(1, 0, 0, 40)
+topBar.BackgroundColor3 = Color3.fromRGB(22, 27, 34)
+topBar.BorderSizePixel = 0
+
+local topBarCorner = Instance.new("UICorner", topBar)
+topBarCorner.CornerRadius = UDim.new(0, 8)
+
+local gradient = Instance.new("UIGradient")
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(106, 17, 203)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(37, 117, 252)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(106, 17, 203))
+}
+gradient.Rotation = 90
+gradient.Parent = topBar
+
+-- Title
+local title = Instance.new("TextLabel", topBar)
+title.Size = UDim2.new(0.6, 0, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "⚡ MCJ HUB UNIVERSAL"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Close button
+local closeBtn = Instance.new("TextButton", topBar)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0.5, -15)
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 16
+closeBtn.TextColor3 = Color3.fromRGB(255, 95, 95)
+closeBtn.BackgroundColor3 = Color3.fromRGB(33, 38, 45)
+closeBtn.AutoButtonColor = false
+
+local closeCorner = Instance.new("UICorner", closeBtn)
+closeCorner.CornerRadius = UDim.new(0, 6)
+
+local closeStroke = Instance.new("UIStroke", closeBtn)
+closeStroke.Color = Color3.fromRGB(65, 70, 80)
+closeStroke.Thickness = 1
+
+-- Minimize button
+local minBtn = Instance.new("TextButton", topBar)
+minBtn.Size = UDim2.new(0, 30, 0, 30)
+minBtn.Position = UDim2.new(1, -70, 0.5, -15)
+minBtn.Text = "─"
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 16
+minBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+minBtn.BackgroundColor3 = Color3.fromRGB(33, 38, 45)
+minBtn.AutoButtonColor = false
+
+local minCorner = Instance.new("UICorner", minBtn)
+minCorner.CornerRadius = UDim.new(0, 6)
+
+local minStroke = Instance.new("UIStroke", minBtn)
+minStroke.Color = Color3.fromRGB(65, 70, 80)
+minStroke.Thickness = 1
+
+-- Sidebar với icon
+local sidebar = Instance.new("Frame", main)
+sidebar.Size = UDim2.new(0, 70, 1, -40)
+sidebar.Position = UDim2.new(0, 0, 0, 40)
+sidebar.BackgroundColor3 = Color3.fromRGB(22, 27, 34)
+sidebar.BorderSizePixel = 0
+
+-- Main content area
+local content = Instance.new("Frame", main)
+content.Size = UDim2.new(1, -70, 1, -40)
+content.Position = UDim2.new(0, 70, 0, 40)
+content.BackgroundColor3 = Color3.fromRGB(13, 17, 23)
+content.BackgroundTransparency = 1
+content.ClipsDescendants = true
+
+-- Scroll container cho content
+local scroll = Instance.new("ScrollingFrame", content)
+scroll.Size = UDim2.new(1, -20, 1, -20)
+scroll.Position = UDim2.new(0, 10, 0, 10)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 4
+scroll.ScrollBarImageColor3 = Color3.fromRGB(65, 70, 80)
+scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local layout = Instance.new("UIListLayout", scroll)
+layout.Padding = UDim.new(0, 12)
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Tạo tab buttons
+local tabs = {}
+local currentTab = "main"
+
+local function createTabButton(icon, name, positionY)
+    local btn = Instance.new("TextButton", sidebar)
+    btn.Size = UDim2.new(1, -10, 0, 50)
+    btn.Position = UDim2.new(0, 5, 0, positionY)
+    btn.BackgroundColor3 = Color3.fromRGB(33, 38, 45)
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    
+    local btnStroke = Instance.new("UIStroke", btn)
+    btnStroke.Color = Color3.fromRGB(65, 70, 80)
+    btnStroke.Thickness = 1
+    
+    local iconLabel = Instance.new("TextLabel", btn)
+    iconLabel.Size = UDim2.new(1, 0, 0.6, 0)
+    iconLabel.Position = UDim2.new(0, 0, 0.1, 0)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Text = icon
+    iconLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    iconLabel.Font = Enum.Font.Gotham
+    iconLabel.TextSize = 20
+    
+    local nameLabel = Instance.new("TextLabel", btn)
+    nameLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0.7, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = name
+    nameLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    nameLabel.Font = Enum.Font.Gotham
+    nameLabel.TextSize = 10
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 45, 52)}):Play()
+        TweenService:Create(iconLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        TweenService:Create(nameLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if tabs[name] ~= currentTab then
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(33, 38, 45)}):Play()
+            TweenService:Create(iconLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+            TweenService:Create(nameLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+        end
+    end)
+    
+    btn.MouseButton1Click:Connect(function()
+        currentTab = name
+        for tabName, _ in pairs(tabs) do
+            local tabBtn = tabs[tabName].button
+            if tabName == name then
+                TweenService:Create(tabBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(48, 54, 61)}):Play()
+                TweenService:Create(tabBtn.UIStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(106, 17, 203)}):Play()
+                TweenService:Create(tabBtn:FindFirstChild("TextLabel"), TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+                TweenService:Create(tabBtn:FindFirstChild("TextLabel"):FindFirstChild("TextLabel"), TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+                tabs[tabName].container.Visible = true
+            else
+                TweenService:Create(tabBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(33, 38, 45)}):Play()
+                TweenService:Create(tabBtn.UIStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(65, 70, 80)}):Play()
+                TweenService:Create(tabBtn:FindFirstChild("TextLabel"), TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+                TweenService:Create(tabBtn:FindFirstChild("TextLabel"):FindFirstChild("TextLabel"), TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(150, 150, 150)}):Play()
+                tabs[tabName].container.Visible = false
+            end
+        end
+    end)
+    
+    return btn
+end
+
+-- Tạo tab containers
+local function createTabContainer(name)
+    local container = Instance.new("ScrollingFrame", content)
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.ScrollBarThickness = 4
+    container.ScrollBarImageColor3 = Color3.fromRGB(65, 70, 80)
+    container.ScrollingDirection = Enum.ScrollingDirection.Y
+    container.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    container.Visible = false
+    
+    local containerLayout = Instance.new("UIListLayout", container)
+    containerLayout.Padding = UDim.new(0, 12)
+    containerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    containerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    tabs[name] = {container = container, button = nil}
+    return container
+end
+
+-- Tạo các tab
+local mainTab = createTabContainer("main")
+local scriptsTab = createTabContainer("scripts")
+local visualTab = createTabContainer("visual")
+local miscTab = createTabContainer("misc")
+
+-- Tạo các tab buttons
+tabs.main.button = createTabButton("🏠", "Main", 10)
+tabs.scripts.button = createTabButton("📜", "Scripts", 70)
+tabs.visual.button = createTabButton("👁️", "Visual", 130)
+tabs.misc.button = createTabButton("⚙️", "Misc", 190)
+
+-- Kích hoạt tab mặc định
+tabs.main.button.MouseButton1Click:Fire()
+
+-- Tạo custom button function cho Moon UI
+local function makeButton(name, callback, container)
+    local btn = Instance.new("TextButton", container)
+    btn.Size = UDim2.new(1, -20, 0, 45)
+    btn.BackgroundColor3 = Color3.fromRGB(33, 38, 45)
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    
+    local btnStroke = Instance.new("UIStroke", btn)
+    btnStroke.Color = Color3.fromRGB(65, 70, 80)
+    btnStroke.Thickness = 1
+    
+    local titleLabel = Instance.new("TextLabel", btn)
+    titleLabel.Size = UDim2.new(0.8, 0, 1, 0)
+    titleLabel.Position = UDim2.new(0, 15, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = name
+    titleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    titleLabel.Font = Enum.Font.Gotham
+    titleLabel.TextSize = 14
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local hoverEffect = Instance.new("Frame", btn)
+    hoverEffect.Size = UDim2.new(1, 0, 1, 0)
+    hoverEffect.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    hoverEffect.BackgroundTransparency = 0.9
+    hoverEffect.Visible = false
+    
+    local hoverCorner = Instance.new("UICorner", hoverEffect)
+    hoverCorner.CornerRadius = UDim.new(0, 6)
+    
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 45, 52)}):Play()
+        TweenService:Create(btnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(106, 17, 203)}):Play()
+        hoverEffect.Visible = true
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(33, 38, 45)}):Play()
+        TweenService:Create(btnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(65, 70, 80)}):Play()
+        hoverEffect.Visible = false
+    end)
+    
+    btn.MouseButton1Click:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(50, 55, 62)}):Play()
+        task.wait(0.1)
+        TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 45, 52)}):Play()
+        callback()
+    end)
+    
+    return btn
+end
+
+-- Tạo toggle button
+local function makeToggleButton(name, initialState, callback, container)
+    local toggleState = initialState
+    
+    local btn = Instance.new("TextButton", container)
+    btn.Size = UDim2.new(1, -20, 0, 45)
+    btn.BackgroundColor3 = initialState and Color3.fromRGB(20, 100, 50) or Color3.fromRGB(33, 38, 45)
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    
+    local btnStroke = Instance.new("UIStroke", btn)
+    btnStroke.Color = initialState and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(65, 70, 80)
+    btnStroke.Thickness = 1
+    
+    local titleLabel = Instance.new("TextLabel", btn)
+    titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+    titleLabel.Position = UDim2.new(0, 15, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = name
+    titleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    titleLabel.Font = Enum.Font.Gotham
+    titleLabel.TextSize = 14
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local statusLabel = Instance.new("TextLabel", btn)
+    statusLabel.Size = UDim2.new(0.25, 0, 1, 0)
+    statusLabel.Position = UDim2.new(0.75, 0, 0, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = initialState and "ON" or "OFF"
+    statusLabel.TextColor3 = initialState and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(255, 100, 100)
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.TextSize = 12
+    
+    btn.MouseButton1Click:Connect(function()
+        toggleState = not toggleState
+        if toggleState then
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 100, 50)}):Play()
+            TweenService:Create(btnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(0, 200, 100)}):Play()
+            statusLabel.Text = "ON"
+            TweenService:Create(statusLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(0, 255, 150)}):Play()
+        else
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(33, 38, 45)}):Play()
+            TweenService:Create(btnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(65, 70, 80)}):Play()
+            statusLabel.Text = "OFF"
+            TweenService:Create(statusLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 100, 100)}):Play()
+        end
+        callback(toggleState)
+    end)
+    
+    return btn
+end
+
+-- ========== XRAY BASE ==========
+local function handleNewPart(part)
+    if xrayEnabled and (part:IsA("Part") or part:IsA("MeshPart") or part:IsA("UnionOperation")) then
+        local name = part.Name:lower()
+        if name:find("structure") or name:find("base") or name:find("home") then
+            if not originalTransparency[part] then
+                originalTransparency[part] = part.Transparency
+            end
+            part.Transparency = 0.9
+        end
+    end
+end
+
+local function setTransparency()
+    for _, part in pairs(workspace:GetDescendants()) do
+        if part:IsA("Part") or part:IsA("MeshPart") or part:IsA("UnionOperation") then
+            local name = part.Name:lower()
+            if name:find("structure") or name:find("base") or name:find("home") then
+                if not originalTransparency[part] then
+                    originalTransparency[part] = part.Transparency
+                end
+                part.Transparency = 0.9
+            end
+        end
+    end
+end
+
+local function enableXrayBase()
+    if xrayEnabled then return end
+    xrayEnabled = true
+    print("[MCJ] Xray Base: Đang bật...")
+    setTransparency()
+    descendantConnection = workspace.DescendantAdded:Connect(handleNewPart)
+    print("[MCJ] Xray Base: Đã bật")
+end
+
+local function disableXrayBase()
+    if not xrayEnabled then return end
+    xrayEnabled = false
+    print("[MCJ] Xray Base: Đang tắt...")
+    if descendantConnection then
+        descendantConnection:Disconnect()
+        descendantConnection = nil
+    end
+    local restoredCount = 0
+    for part, originalTrans in pairs(originalTransparency) do
+        if part and part.Parent then
+            part.Transparency = originalTrans
+            restoredCount = restoredCount + 1
+        end
+    end
+    originalTransparency = {}
+    print("[MCJ] Xray Base: Đã tắt - " .. restoredCount .. " part được khôi phục")
+end
+
+-- ========== ESP BASE ==========
+local function getRainbowColor()
+    local time = tick() * 0.5
+    local r = math.sin(time * 1.5) * 0.5 + 0.5
+    local g = math.sin(time * 1.5 + 2) * 0.5 + 0.5
+    local b = math.sin(time * 1.5 + 4) * 0.5 + 0.5
+    return Color3.new(r, g, b)
+end
+
+local function updateEspBase()
+    if not espBaseEnabled then
+        for _, instance in pairs(lteInstances) do
+            if instance then
+                instance:Destroy()
+            end
+        end
+        lteInstances = {}
+        return
+    end
+
+    local currentTime = tick()
+    local shouldUpdateText = (currentTime - lastUpdateTime) >= updateInterval
+
+    for _, plot in pairs(workspace.Plots:GetChildren()) do
+        local purchases = plot:FindFirstChild("Purchases")
+        if purchases then
+            local plotBlock = purchases:FindFirstChild("PlotBlock")
+            if plotBlock then
+                local main = plotBlock:FindFirstChild("Main")
+                if main then
+                    local billboardGui = main:FindFirstChild("BillboardGui")
+                    if billboardGui then
+                        local timeLabel = billboardGui:FindFirstChild("RemainingTime")
+                        if timeLabel and timeLabel:IsA("TextLabel") then
+                            local espName = "LockTimeESP_" .. plot.Name
+                            local existingBillboard = plot:FindFirstChild(espName)
+                            local rainbowColor = getRainbowColor()
+                            
+                            if not existingBillboard then
+                                local billboard = Instance.new("BillboardGui")
+                                billboard.Name = espName
+                                billboard.Size = UDim2.new(0, 150, 0, 30)
+                                billboard.StudsOffset = Vector3.new(0, 4, 0)
+                                billboard.AlwaysOnTop = true
+                                billboard.Adornee = main
+                                
+                                local label = Instance.new("TextLabel")
+                                label.Text = timeLabel.Text == "0s" and "🔓 UNLOCKED" or ("🔒 " .. timeLabel.Text)
+                                label.Size = UDim2.new(1, 0, 1, 0)
+                                label.BackgroundTransparency = 1
+                                label.TextScaled = false
+                                label.TextSize = 30
+                                label.TextColor3 = rainbowColor
+                                label.TextStrokeColor3 = Color3.new(0, 0, 0)
+                                label.TextStrokeTransparency = 0.2
+                                label.Font = Enum.Font.Gotham
+                                label.Parent = billboard
+                                
+                                billboard.Parent = plot
+                                lteInstances[plot.Name] = billboard
+                            else
+                                if shouldUpdateText then
+                                    existingBillboard.TextLabel.Text = timeLabel.Text == "0s" and "🔓 UNLOCKED" or ("🔒 " .. timeLabel.Text)
+                                end
+                                existingBillboard.TextLabel.TextColor3 = rainbowColor
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if shouldUpdateText then
+        lastUpdateTime = currentTime
+    end
+end
+
+local function enableEspBase()
+    if espBaseEnabled then return end
+    espBaseEnabled = true
+    print("[MCJ] ESP Base: Đã bật")
+    task.spawn(function()
+        while espBaseEnabled do
+            updateEspBase()
+            task.wait(0.05)
+        end
+    end)
+end
+
+local function disableEspBase()
+    if not espBaseEnabled then return end
+    espBaseEnabled = false
+    print("[MCJ] ESP Base: Đã tắt")
+    updateEspBase()
+end
+
+-- ========== DEVELOP BASE ESP ==========
+local function FindDevelopBase()
+    local plots = workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local sign = plot:FindFirstChild("PlotSign")
+        if sign then
+            local yourBase = sign:FindFirstChild("YourBase")
+            if yourBase and yourBase.Enabled then
+                return plot
+            end
+        end
+    end
+    return nil
+end
+
+local function ClearEffects()
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v.Name == "MCJ_DEV_OUTLINE" or v.Name == "MCJ_DEV_LABEL" then
+            v:Destroy()
+        end
+    end
+end
+
+local function AddOutline(part)
+    if part:FindFirstChild("MCJ_DEV_OUTLINE") then return end
+    local box = Instance.new("SelectionBox")
+    box.Name = "MCJ_DEV_OUTLINE"
+    box.Adornee = part
+    box.LineThickness = 0.05
+    box.Color3 = Color3.fromRGB(40, 140, 255)
+    box.SurfaceTransparency = 1
+    box.Transparency = 0
+    box.Parent = part
+end
+
+local function CreateLabel(plot)
+    local old = plot:FindFirstChild("MCJ_DEV_LABEL")
+    if old then old:Destroy() end
+    local part = plot:FindFirstChildWhichIsA("BasePart", true)
+    if not part then return end
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "MCJ_DEV_LABEL"
+    gui.Adornee = part
+    gui.AlwaysOnTop = true
+    gui.Size = UDim2.new(10, 0, 4, 0)
+    gui.StudsOffset = Vector3.new(0, 7, 0)
+    gui.Parent = plot
+    local text = Instance.new("TextLabel")
+    text.BackgroundTransparency = 1
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.TextScaled = true
+    text.Font = Enum.Font.GothamBold
+    text.TextColor3 = Color3.fromRGB(70, 120, 255)
+    text.TextStrokeTransparency = 0.2
+    text.TextStrokeColor3 = Color3.fromRGB(10, 30, 80)
+    text.Text = "YOUR BASE"
+    text.Parent = gui
+end
+
+local function ApplyEffects(plot)
+    for _, inst in ipairs(plot:GetDescendants()) do
+        if inst:IsA("BasePart") then
+            local nameLower = inst.Name:lower()
+            if nameLower:find("structure") or nameLower:find("base") or nameLower:find("home") then
+                AddOutline(inst)
+            end
+        end
+    end
+    local hitbox = plot:FindFirstChild("DeliveryHitbox", true)
+    if hitbox and hitbox:IsA("BasePart") then
+        AddOutline(hitbox)
+    end
+end
+
+local function SetupDevelopESP()
+    ClearEffects()
+    local base = FindDevelopBase()
+    if base then
+        ApplyEffects(base)
+        CreateLabel(base)
+        print("[MCJ] Develop Base ESP: Đã bật!")
+        return true
+    else
+        print("[MCJ] Không tìm thấy plot của bạn")
+        return false
+    end
+end
+
+local function StartDevelopESP()
+    if developEspEnabled then return end
+    developEspEnabled = true
+    local success = SetupDevelopESP()
+    if not success then return end
+    developEspConnection = RunService.Heartbeat:Connect(function()
+        local base = FindDevelopBase()
+        if not base then return end
+        for _, inst in ipairs(base:GetDescendants()) do
+            if inst:IsA("BasePart") then
+                local nameLower = inst.Name:lower()
+                local needOutline = nameLower:find("structure") or nameLower:find("base") or nameLower:find("home")
+                if needOutline and not inst:FindFirstChild("MCJ_DEV_OUTLINE") then
+                    AddOutline(inst)
+                end
+            end
+        end
+        local hitbox = base:FindFirstChild("DeliveryHitbox", true)
+        if hitbox and not hitbox:FindFirstChild("MCJ_DEV_OUTLINE") then
+            AddOutline(hitbox)
+        end
+    end)
+end
+
+local function StopDevelopESP()
+    if not developEspEnabled then return end
+    developEspEnabled = false
+    if developEspConnection then
+        developEspConnection:Disconnect()
+        developEspConnection = nil
+    end
+    ClearEffects()
+    print("[MCJ] Develop Base ESP: Đã tắt")
+end
+
+-- ========== ANTI LAG ==========
+local character = player.Character or player.CharacterAdded:Wait()
+
+local function removeClothes()
+    if not character then return end
+    for _, v in pairs(character:GetChildren()) do
+        if v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("Accessory") then
+            v:Destroy()
+        end
+    end
+end
+
+local function removePartTextures(obj)
+    if obj:IsA("Texture") or obj:IsA("Decal") or obj:IsA("SurfaceAppearance") then
+        obj:Destroy()
+    end
+end
+
+local function enableAntiLag()
+    if antiLagEnabled then return end
+    antiLagEnabled = true
+    print("[MCJ] Anti Lag: Đang bật...")
+    
+    removeClothes()
+    
+    local charConnection = player.CharacterAdded:Connect(function(c)
+        character = c
+        task.wait(0.1)
+        removeClothes()
+    end)
+    table.insert(antiLagConnections, charConnection)
+    
+    local clothesLoop = task.spawn(function()
+        while antiLagEnabled do
+            if character then removeClothes() end
+            task.wait(1)
+        end
+    end)
+    table.insert(antiLagConnections, clothesLoop)
+    
+    for _,v in pairs(workspace:GetDescendants()) do
+        removePartTextures(v)
+    end
+    local textureConnection = workspace.DescendantAdded:Connect(removePartTextures)
+    table.insert(antiLagConnections, textureConnection)
+    
+    print("[MCJ] Anti Lag: Đã bật")
+end
+
+local function disableAntiLag()
+    if not antiLagEnabled then return end
+    antiLagEnabled = false
+    print("[MCJ] Anti Lag: Đang tắt...")
+    for _, connection in pairs(antiLagConnections) do
+        if type(connection) == "userdata" and connection.Connected then
+            connection:Disconnect()
+        elseif type(connection) == "thread" then
+            task.cancel(connection)
+        end
+    end
+    antiLagConnections = {}
+    print("[MCJ] Anti Lag: Đã tắt")
+end
+
+-- ========== TẠO NÚT TRONG CÁC TAB ==========
+
+-- Main tab
+makeButton("MCJ SUPER BOOST", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Super%20boost", true))()
+end, mainTab)
+
+makeButton("INFINITE YIELD", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source", true))()
+end, mainTab)
+
+makeButton("ALL IN ONE", function()
+    loadstring(game:HttpGet("https://pastefy.app/gsyY9wzH/raw", true))()
+end, mainTab)
+
+-- Scripts tab
+makeButton("USE TOOL (in steal)", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJPRIVATESCRIPTCODE8901873782899191963780192983737037085538CR037085538/refs/heads/main/Use%20tool", true))()
+end, scriptsTab)
+
+makeButton("SHIFTLOCK", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJSCRIPT/refs/heads/main/Steal%20a%20brainrot%20shiftlock", true))()
+end, scriptsTab)
+
+makeButton("STEAL HELPER", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Steal%20helper", true))()
+end, scriptsTab)
+
+makeButton("MCJ BOOST", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Loopspeed", true))()
+end, scriptsTab)
+
+makeButton("FLY TO BASE", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Flytobase", true))()
+end, scriptsTab)
+
+makeButton("OP FLY - WORK IN STEAL", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Op%20fly", true))()
+end, scriptsTab)
+
+makeButton("FLY TO BEST", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Fly%20to%20best", true))()
+end, scriptsTab)
+
+makeButton("SKYWALK", function()
+    loadstring(game:HttpGet("https://pastefy.app/P2CWBaHF/raw", true))()
+end, scriptsTab)
+
+makeButton("USE CLONER", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Usetool", true))()
+end, scriptsTab)
+
+-- Visual tab
+local espYourBaseToggle = makeToggleButton("ESP YOUR BASE", false, function(state)
+    if state then
+        StartDevelopESP()
+    else
+        StopDevelopESP()
+    end
+end, visualTab)
+
+local xrayToggle = makeToggleButton("XRAY BASE", false, function(state)
+    if state then
+        enableXrayBase()
+    else
+        disableXrayBase()
+    end
+end, visualTab)
+
+local espBaseToggle = makeToggleButton("ESP BASE", false, function(state)
+    if state then
+        enableEspBase()
+    else
+        disableEspBase()
+    end
+end, visualTab)
+
+-- Misc tab
+makeButton("Anti push V2", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJPRIVATESCRIPTCODE8901873782899191963780192983737037085538CR037085538/refs/heads/main/Codemcj0369712762079841958065110003567518036971276203697127620369712762079841958065110003567518651100035675180369712762079841958003697127626511000356751803697127620798419580", true))()
+end, miscTab)
+
+makeButton("Anti push", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Anti%20push", true))()
+end, miscTab)
+
+makeButton("STEAL FLOOR", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/kolllooomcj-bit/MCJHUB/refs/heads/main/Stealfloor", true))()
+end, miscTab)
+
+makeButton("FLOAT Gui", function()
+    loadstring(game:HttpGet("https://pastefy.app/YkHHDqR2/raw", true))()
+end, miscTab)
+
+local antiLagToggle = makeToggleButton("ANTI LAG", false, function(state)
+    if state then
+        enableAntiLag()
+    else
+        disableAntiLag()
+    end
+end, miscTab)
+
+makeButton("Anti Kick", function()
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)  
+        local method = getnamecallmethod()  
+        if method == "Kick" or method == "kick" then  
+            warn("[MCJ] Anti Kick chặn Kick!")  
+            return nil  
+        end  
+        return oldNamecall(self, ...)  
+    end)  
+    setreadonly(mt, true)  
+    print("[MCJ] Anti Kick đã bật.")
+end, miscTab)
+
+makeButton("Kick Button", function()
+    local player = game.Players.LocalPlayer
+    local gui = player:WaitForChild("PlayerGui")
+    local kickGui = gui:FindFirstChild("MCJ_KickGui")  
+    if not kickGui then  
+        kickGui = Instance.new("ScreenGui", gui)  
+        kickGui.Name = "MCJ_KickGui"  
+        kickGui.Enabled = false  
+        local btn = Instance.new("TextButton", kickGui)  
+        btn.Size = UDim2.new(0,200,0,50)  
+        btn.Position = UDim2.new(0.5,-100,0.5,-200)  
+        btn.Text = "Kick Me"  
+        btn.TextSize = 20  
+        btn.BackgroundColor3 = Color3.fromRGB(200,50,50)  
+        btn.TextColor3 = Color3.new(1,1,1)  
+        btn.MouseButton1Click:Connect(function()  
+            player:Kick("Ngon thí.")  
+        end)  
+    end  
+    kickGui.Enabled = not kickGui.Enabled
+end, miscTab)
+
+-- COPY TIKTOK
+local copyBtn = Instance.new("TextButton", miscTab)
+copyBtn.Size = UDim2.new(1, -20, 0, 45)
+copyBtn.BackgroundColor3 = Color3.fromRGB(70,20,70)
+copyBtn.Text = ""
+copyBtn.AutoButtonColor = false
+
+local copyCorner = Instance.new("UICorner", copyBtn)
+copyCorner.CornerRadius = UDim.new(0, 6)
+
+local copyStroke = Instance.new("UIStroke", copyBtn)
+copyStroke.Color = Color3.fromRGB(255, 215, 0)
+copyStroke.Thickness = 1
+
+local copyLabel = Instance.new("TextLabel", copyBtn)
+copyLabel.Size = UDim2.new(1, 0, 1, 0)
+copyLabel.BackgroundTransparency = 1
+copyLabel.Text = "📱 COPY TIKTOK @mcjreal"
+copyLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+copyLabel.Font = Enum.Font.GothamBold
+copyLabel.TextSize = 14
+
+copyBtn.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard("@mcjreal")
+        local originalText = copyLabel.Text
+        copyLabel.Text = "✓ COPIED!"
+        task.wait(1)
+        copyLabel.Text = originalText
+        print("[MCJ] Đã copy @mcjreal vào clipboard.")
+    else
+        warn("[MCJ] Executor không hỗ trợ setclipboard!")
+    end
+end)
+
+-- ========== TẠO TOGGLE GUI BUTTON ==========
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0, 120, 0, 40)
+toggleBtn.Position = UDim2.new(1, -130, 0, 10)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(106, 17, 203)
+toggleBtn.Text = "Open MCJ Hub"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 14
+toggleBtn.AutoButtonColor = false
+
+local toggleCorner = Instance.new("UICorner", toggleBtn)
+toggleCorner.CornerRadius = UDim.new(0, 6)
+
+local toggleStroke = Instance.new("UIStroke", toggleBtn)
+toggleStroke.Color = Color3.fromRGB(150, 100, 255)
+toggleStroke.Thickness = 2
+
+-- Animation cho toggle button
+task.spawn(function()
+    while true do
+        for i = 0, 1, 0.02 do
+            local h = i
+            toggleStroke.Color = Color3.fromHSV(h, 0.8, 1)
+            task.wait(0.05)
+        end
+    end
+end)
+
+-- Toggle GUI function
+local guiVisible = false
+toggleBtn.MouseButton1Click:Connect(function()
+    guiVisible = not guiVisible
+    
+    if guiVisible then
+        toggleBtn.Text = "Close MCJ Hub"
+        main.Visible = true
+        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(0, 500, 0, 600)}):Play()
+        TweenService:Create(blur, TweenInfo.new(0.3), {Size = 24}):Play()
+    else
+        toggleBtn.Text = "Open MCJ Hub"
+        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = UDim2.new(0, 500, 0, 0)}):Play()
+        TweenService:Create(blur, TweenInfo.new(0.3), {Size = 0}):Play()
+        task.wait(0.3)
+        main.Visible = false
+    end
+end)
+
+-- Minimize function
+local isMinimized = false
+minBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        TweenService:Create(main, TweenInfo.new(0.3), {Size = UDim2.new(0, 500, 0, 40)}):Play()
+        content.Visible = false
+        sidebar.Visible = false
+    else
+        TweenService:Create(main, TweenInfo.new(0.3), {Size = UDim2.new(0, 500, 0, 600)}):Play()
+        content.Visible = true
+        sidebar.Visible = true
+    end
+end)
+
+-- Close button function
+closeBtn.MouseButton1Click:Connect(function()
+    if xrayEnabled then disableXrayBase() end
+    if developEspEnabled then StopDevelopESP() end
+    if antiLagEnabled then disableAntiLag() end
+    TweenService:Create(main, TweenInfo.new(0.3), {Size = UDim2.new(0, 500, 0, 0)}):Play()
+    TweenService:Create(blur, TweenInfo.new(0.3), {Size = 0}):Play()
+    task.wait(0.3)
+    gui:Destroy()
+    blur:Destroy()
+end)
+
+-- Hover effects cho buttons
+closeBtn.MouseEnter:Connect(function()
+    TweenService:Create(closeBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 45, 52)}):Play()
+end)
+
+closeBtn.MouseLeave:Connect(function()
+    TweenService:Create(closeBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(33, 38, 45)}):Play()
+end)
+
+minBtn.MouseEnter:Connect(function()
+    TweenService:Create(minBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 45, 52)}):Play()
+end)
+
+minBtn.MouseLeave:Connect(function()
+    TweenService:Create(minBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(33, 38, 45)}):Play()
+end)
+
+toggleBtn.MouseEnter:Connect(function()
+    TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(120, 40, 220)}):Play()
+end)
+
+toggleBtn.MouseLeave:Connect(function()
+    TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(106, 17, 203)}):Play()
+end)
+
+print("[MCJ] Moon UI Hub đã load thành công!")
+print("[MCJ] Nhấn nút 'Open MCJ Hub' để mở GUI")dài
