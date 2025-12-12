@@ -1,0 +1,398 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- GUI
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local gui = Instance.new("ScreenGui")
+gui.Name = "AIMBOT_TOOLS"
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 190)
+frame.Position = UDim2.new(0.05, 0, 0.2, 0)
+frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+frame.BackgroundTransparency = 0.3
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+local stroke = Instance.new("UIStroke", frame)
+stroke.Color = Color3.fromRGB(0, 255, 0)
+stroke.Thickness = 2
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.Text = "AIMBOT TOOLS"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextColor3 = Color3.fromRGB(0, 255, 0)
+title.BackgroundTransparency = 1
+title.Parent = frame
+
+-- Biến điều khiển
+local aimbotEnabled = false
+local povEnabled = false
+local espEnabled = false
+local fpsBoostEnabled = false
+
+local espData = {} -- Lưu trữ ESP data cho mỗi player
+local originalFOV = workspace.CurrentCamera.FieldOfView
+
+-- ========== AIMBOT FUNCTION ==========
+local aimCircle = Instance.new("Frame")
+aimCircle.Size = UDim2.new(0, 120, 0, 120)
+aimCircle.Position = UDim2.new(0.5, -60, 0.5, -60)
+aimCircle.BackgroundTransparency = 1
+aimCircle.BorderSizePixel = 3
+aimCircle.BorderColor3 = Color3.fromRGB(255, 0, 0)
+aimCircle.Visible = false
+aimCircle.Parent = gui
+
+local aimDot = Instance.new("Frame")
+aimDot.Size = UDim2.new(0, 6, 0, 6)
+aimDot.Position = UDim2.new(0.5, -3, 0.5, -3)
+aimDot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+aimDot.BorderSizePixel = 0
+aimDot.Visible = false
+aimDot.Parent = gui
+
+-- Nút Aimbot
+local aimBtn = Instance.new("TextButton")
+aimBtn.Size = UDim2.new(0.9, 0, 0, 25)
+aimBtn.Position = UDim2.new(0.05, 0, 0, 35)
+aimBtn.Text = "🎯 AIMBOT: OFF"
+aimBtn.Font = Enum.Font.Gotham
+aimBtn.TextSize = 12
+aimBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+aimBtn.Parent = frame
+
+-- POV Text Box
+local povTextBox = Instance.new("TextBox")
+povTextBox.Size = UDim2.new(0.9, 0, 0, 22)
+povTextBox.Position = UDim2.new(0.05, 0, 0, 65)
+povTextBox.PlaceholderText = "FOV (default: 70)"
+povTextBox.Text = "70"
+povTextBox.Font = Enum.Font.Gotham
+povTextBox.TextSize = 11
+povTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+povTextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+povTextBox.Parent = frame
+
+-- Nút POV
+local povBtn = Instance.new("TextButton")
+povBtn.Size = UDim2.new(0.9, 0, 0, 22)
+povBtn.Position = UDim2.new(0.05, 0, 0, 92)
+povBtn.Text = "🔍 FOV: OFF"
+povBtn.Font = Enum.Font.Gotham
+povBtn.TextSize = 11
+povBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+povBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+povBtn.Parent = frame
+
+-- Nút ESP
+local espBtn = Instance.new("TextButton")
+espBtn.Size = UDim2.new(0.9, 0, 0, 22)
+espBtn.Position = UDim2.new(0.05, 0, 0, 119)
+espBtn.Text = "👁️ ESP: OFF"
+espBtn.Font = Enum.Font.Gotham
+espBtn.TextSize = 11
+espBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+espBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+espBtn.Parent = frame
+
+-- Nút FPS Boost
+local fpsBtn = Instance.new("TextButton")
+fpsBtn.Size = UDim2.new(0.9, 0, 0, 25)
+fpsBtn.Position = UDim2.new(0.05, 0, 0, 146)
+fpsBtn.Text = "⚡ FPS BOOST: OFF"
+fpsBtn.Font = Enum.Font.Gotham
+fpsBtn.TextSize = 12
+fpsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+fpsBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+fpsBtn.Parent = frame
+
+local function getClosestHead()
+    local closestHead = nil
+    local closestDistance = math.huge
+    local localChar = LocalPlayer.Character
+    
+    if not localChar then return nil end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            local head = char:FindFirstChild("Head")
+            
+            if humanoid and humanoid.Health > 0 and head then
+                local screenPoint, onScreen = workspace.CurrentCamera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local center = Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)
+                    local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
+                    local distance = (screenPos - center).Magnitude
+                    
+                    if distance < 60 and distance < closestDistance then
+                        closestDistance = distance
+                        closestHead = head
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestHead
+end
+
+aimBtn.MouseButton1Click:Connect(function()
+    aimbotEnabled = not aimbotEnabled
+    aimBtn.Text = aimbotEnabled and "🎯 AIMBOT: ON" or "🎯 AIMBOT: OFF"
+    aimBtn.BackgroundColor3 = aimbotEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    aimCircle.Visible = aimbotEnabled
+    aimDot.Visible = aimbotEnabled
+end)
+
+-- ========== POV/FOV FUNCTION ==========
+local function updatePOV()
+    if povEnabled then
+        local newFOV = tonumber(povTextBox.Text) or 70
+        workspace.CurrentCamera.FieldOfView = newFOV
+    else
+        workspace.CurrentCamera.FieldOfView = originalFOV
+    end
+end
+
+povBtn.MouseButton1Click:Connect(function()
+    povEnabled = not povEnabled
+    povBtn.Text = povEnabled and "🔍 FOV: ON" or "🔍 FOV: OFF"
+    povBtn.BackgroundColor3 = povEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    updatePOV()
+end)
+
+-- ========== ESP FUNCTION HOÀN CHỈNH ==========
+local function createESPForPlayer(player)
+    if not espEnabled or player == LocalPlayer then return end
+    
+    -- Xóa ESP cũ nếu có
+    if espData[player] then
+        if espData[player].billboard then
+            espData[player].billboard:Destroy()
+        end
+        if espData[player].beam then
+            espData[player].beam:Destroy()
+        end
+        if espData[player].connection then
+            espData[player].connection:Disconnect()
+        end
+    end
+    
+    espData[player] = {}
+    
+    local function setupESP(char)
+        if not char then return end
+        
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        local head = char:FindFirstChild("Head")
+        
+        if humanoid and head then
+            -- Tạo BillboardGui
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ESP_" .. player.Name
+            billboard.Adornee = head
+            billboard.Size = UDim2.new(0, 200, 0, 50)
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            billboard.AlwaysOnTop = true
+            billboard.Enabled = espEnabled
+            billboard.Parent = head
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Text = player.Name
+            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.TextSize = 16
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.Size = UDim2.new(1, 0, 1, 0)
+            nameLabel.Parent = billboard
+            
+            -- Tạo Beam
+            local beam = Instance.new("Beam")
+            beam.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+            beam.Width0 = 0.2
+            beam.Width1 = 0.2
+            beam.Enabled = espEnabled
+            beam.Parent = workspace
+            
+            -- Tạo attachments
+            local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+            if localHead then
+                local attachment0 = Instance.new("Attachment")
+                attachment0.Parent = localHead
+                
+                local attachment1 = Instance.new("Attachment")
+                attachment1.Parent = head
+                
+                beam.Attachment0 = attachment0
+                beam.Attachment1 = attachment1
+            end
+            
+            espData[player].billboard = billboard
+            espData[player].beam = beam
+            espData[player].head = head
+        end
+    end
+    
+    -- Setup ESP cho character hiện tại
+    if player.Character then
+        setupESP(player.Character)
+    end
+    
+    -- Kết nối khi player thay đổi character
+    espData[player].connection = player.CharacterAdded:Connect(function(char)
+        wait(1) -- Đợi character load
+        if espEnabled then
+            setupESP(char)
+        end
+    end)
+end
+
+local function removeESPForPlayer(player)
+    if espData[player] then
+        if espData[player].billboard then
+            espData[player].billboard:Destroy()
+        end
+        if espData[player].beam then
+            espData[player].beam:Destroy()
+        end
+        if espData[player].connection then
+            espData[player].connection:Disconnect()
+        end
+        espData[player] = nil
+    end
+end
+
+local function updateAllESP()
+    -- Xóa tất cả ESP cũ
+    for player, data in pairs(espData) do
+        removeESPForPlayer(player)
+    end
+    
+    if not espEnabled then return end
+    
+    -- Tạo ESP cho tất cả player hiện tại
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createESPForPlayer(player)
+        end
+    end
+end
+
+-- Khi có player mới join
+Players.PlayerAdded:Connect(function(player)
+    if espEnabled then
+        createESPForPlayer(player)
+    end
+end)
+
+-- Khi player leave
+Players.PlayerRemoving:Connect(function(player)
+    removeESPForPlayer(player)
+end)
+
+espBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    espBtn.Text = espEnabled and "👁️ ESP: ON" or "👁️ ESP: OFF"
+    espBtn.BackgroundColor3 = espEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    updateAllESP()
+end)
+
+-- ========== FPS BOOST FUNCTION ==========
+local function applyFPSBoost()
+    if fpsBoostEnabled then
+        -- Tối ưu hóa graphics
+        settings().Rendering.QualityLevel = 1
+        game:GetService("Lighting").GlobalShadows = false
+        game:GetService("Lighting").FogEnd = 100000
+        workspace.Terrain.WaterReflectance = 0
+        workspace.Terrain.WaterTransparency = 1
+        workspace.Terrain.WaterWaveSize = 0
+        workspace.Terrain.WaterWaveSpeed = 0
+        
+        -- Tắt các hiệu ứng không cần thiết
+        for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
+            if effect:IsA("BlurEffect") or effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") then
+                effect.Enabled = false
+            end
+        end
+    else
+        -- Khôi phục cài đặt mặc định
+        settings().Rendering.QualityLevel = 10
+        game:GetService("Lighting").GlobalShadows = true
+        game:GetService("Lighting").FogEnd = 1000000
+    end
+end
+
+fpsBtn.MouseButton1Click:Connect(function()
+    fpsBoostEnabled = not fpsBoostEnabled
+    fpsBtn.Text = fpsBoostEnabled and "⚡ FPS BOOST: ON" or "⚡ FPS BOOST: OFF"
+    fpsBtn.BackgroundColor3 = fpsBoostEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    applyFPSBoost()
+end)
+
+-- ========== MAIN LOOPS ==========
+-- Aimbot Loop
+RunService.Heartbeat:Connect(function()
+    if aimbotEnabled then
+        local targetHead = getClosestHead()
+        if targetHead then
+            local camera = workspace.CurrentCamera
+            local targetPosition = targetHead.Position + Vector3.new(0, 0.5, 0)
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPosition)
+        end
+    end
+end)
+
+-- POV Update Loop
+RunService.Heartbeat:Connect(updatePOV)
+
+-- ESP Beam Update Loop (đảm bảo beam luôn kết nối đúng)
+RunService.Heartbeat:Connect(function()
+    if espEnabled then
+        local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+        if localHead then
+            for player, data in pairs(espData) do
+                if data.beam and data.beam.Enabled and player.Character then
+                    local targetHead = player.Character:FindFirstChild("Head")
+                    if targetHead then
+                        -- Đảm bảo attachments tồn tại
+                        if not data.beam.Attachment0 then
+                            local attachment0 = Instance.new("Attachment")
+                            attachment0.Parent = localHead
+                            data.beam.Attachment0 = attachment0
+                        end
+                        if not data.beam.Attachment1 then
+                            local attachment1 = Instance.new("Attachment")
+                            attachment1.Parent = targetHead
+                            data.beam.Attachment1 = attachment1
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Khởi tạo ESP cho player hiện có khi script start
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        createESPForPlayer(player)
+    end
+end
+
+print("🎯 AIMBOT TOOLS LOADED!")
+print("🎯 AIMBOT - Vòng tròn TO, aim chính xác vào đầu")
+print("🔍 FOV - Điều chỉnh góc nhìn camera")
+print("👁️ ESP - Tự động thêm player mới + BEAM real-time")
+print("⚡ FPS BOOST - Tăng FPS cực mạnh")
