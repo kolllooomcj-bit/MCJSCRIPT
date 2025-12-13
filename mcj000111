@@ -1,0 +1,313 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- Thêm "idle2" vào danh sách basic animation
+local basicAnims = {"walk", "run", "idle", "idle2", "jump", "fall", "climb", "swim"}
+
+local stopAnims = true -- true: dừng animation cơ bản, false: cho chạy lại
+
+RunService.Heartbeat:Connect(function()
+    if not stopAnims then return end
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    if humanoid.RigType ~= Enum.HumanoidRigType.R15 then return end
+
+    for , track in pairs(humanoid:GetPlayingAnimationTracks()) do
+        local name = track.Name:lower()
+        for , keyword in ipairs(basicAnims) do
+            if name:find(keyword) then
+                track:Stop()
+            end
+        end
+    end
+end)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+local isActive = true
+local lastHead = nil
+
+local function hideHeadAndFace()
+    if not isActive then return end
+
+    local character = player.Character
+    if not character then return end
+
+    local head = character:FindFirstChild("Head")
+    if not head or not head:IsA("BasePart") then return end
+
+    -- Chỉ chạy khi head thay đổi hoặc transparency bị reset
+    if head == lastHead and head.LocalTransparencyModifier == 1 then
+        return
+    end
+
+    lastHead = head
+
+    -- Ẩn head
+    head.LocalTransparencyModifier = 1
+
+    -- Ẩn face và decals + theo dõi changes
+    for _, child in ipairs(head:GetChildren()) do
+        if child:IsA("Decal") then
+            child.Transparency = 1
+            -- Nếu decal bị reset, sẽ phát hiện qua property changed
+        end
+    end
+
+    -- Theo dõi nếu transparency bị reset
+    if not head:GetAttribute("TransparencyWatch") then
+        head:SetAttribute("TransparencyWatch", true)
+
+        head:GetPropertyChangedSignal("LocalTransparencyModifier"):Connect(function()
+            if isActive and head.LocalTransparencyModifier ~= 1 then
+                head.LocalTransparencyModifier = 1
+            end
+        end)
+    end
+end
+
+-- Chỉ 1 heartbeat connection nhẹ nhàng
+local heartbeatConn
+heartbeatConn = RunService.Heartbeat:Connect(function()
+    if isActive and player.Character then
+        hideHeadAndFace()
+    end
+end)
+
+-- Khi respawn
+player.CharacterAdded:Connect(function(character)
+    task.wait(1)
+    lastHead = nil -- Reset để chạy lại
+    if isActive then
+        hideHeadAndFace()
+    end
+end)
+
+-- Chạy ngay
+if player.Character then
+    hideHeadAndFace()
+end
+
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+
+-- Xóa effects cũ
+for _, effect in ipairs(Lighting:GetChildren()) do
+ if effect:IsA("PostEffect") then
+ effect:Destroy()
+ end
+end
+
+-- BẦU TRỜI ĐÊM NHƯNG BLOCK CHỈ TỐI NHẸ
+Lighting.Brightness = 2.5 -- Sáng bình thường
+Lighting.GlobalShadows = true -- Bóng đổ rõ
+Lighting.ShadowSoftness = 0.08 -- Bóng sắc nét
+Lighting.ClockTime = 0 -- Ban đêm
+Lighting.GeographicLatitude = 65 -- Aurora
+
+-- MÀU SẮC CHỈ TỐI NHẸ - VẪN THẤY RÕ BLOCK
+Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.6) -- Chỉ tối nhẹ
+Lighting.Ambient = Color3.new(0.4, 0.4, 0.5) -- Tối rất nhẹ
+Lighting.FogColor = Color3.new(0.4, 0.5, 0.6) -- Sương nhạt
+Lighting.FogEnd = 10000
+
+-- SKYBOX ĐÊM ĐẸP
+local sky = Instance.new("Sky")
+sky.SkyboxBk = "http://www.roblox.com/asset/?id=159454299" -- Đêm sao
+sky.SkyboxDn = "http://www.roblox.com/asset/?id=159454386" 
+sky.SkyboxFt = "http://www.roblox.com/asset/?id=159454299"
+sky.SkyboxLf = "http://www.roblox.com/asset/?id=159454299"
+sky.SkyboxRt = "http://www.roblox.com/asset/?id=159454299"
+sky.SkyboxUp = "http://www.roblox.com/asset/?id=159454423" -- Aurora
+sky.Parent = Lighting
+
+-- COLOR CORRECTION CHỈ LÀM TỐI RẤT NHẸ
+local colorCorrection = Instance.new("ColorCorrectionEffect")
+colorCorrection.Contrast = 0.05
+colorCorrection.Brightness = -0.05 -- CHỈ TỐI RẤT NHẸ
+colorCorrection.Saturation = 0.05 -- Màu gần như tự nhiên
+colorCorrection.TintColor = Color3.new(0.98, 0.98, 1) -- Xanh rất nhạt
+colorCorrection.Parent = Lighting
+
+-- BLOOM RẤT NHẸ CHO KHÔNG GIAN
+local bloom = Instance.new("BloomEffect")
+bloom.Intensity = 0.15 -- Rất nhẹ
+bloom.Size = 20
+bloom.Threshold = 0.95 -- Chỉ áp dụng vùng rất sáng
+bloom.Parent = Lighting
+
+-- ATMOSPHERE NHẸ NHÀNG
+local atmosphere = Instance.new("Atmosphere")
+atmosphere.Density = 0.15 -- Rất nhẹ
+atmosphere.Offset = 0.1
+atmosphere.Color = Color3.new(0.3, 0.4, 0.6) -- Xanh dịu
+atmosphere.Decay = Color3.new(0.4, 0.5, 0.7)
+atmosphere.Glare = 0.02
+atmosphere.Haze = 0.08
+atmosphere.Parent = Lighting
+
+-- ÁNH SÁNG BÙ NHẸ ĐỂ BLOCK KHÔNG BỊ TỐI
+local function addSoftLight()
+ local fillLight = Instance.new("PointLight")
+ fillLight.Name = "SoftFillLight"
+ fillLight.Brightness = 0.4 -- Nhẹ nhàng
+ fillLight.Range = 300
+ fillLight.Color = Color3.new(0.8, 0.85, 1) -- Trắng xanh dịu
+ fillLight.Shadows = false -- Không tạo shadow thêm
+ 
+ fillLight.Parent = workspace
+ fillLight.Position = Vector3.new(0, 25, 0)
+end
+
+addSoftLight()
+
+-- HIỆU ỨNG CHILL NHẸ
+task.spawn(function()
+ while task.wait(0.3) do
+ local time = tick()
+ 
+ -- Aurora thay đổi rất nhẹ
+ atmosphere.Color = Color3.new(
+ 0.3 + math.sin(time * 0.2) * 0.03,
+ 0.4 + math.sin(time * 0.3) * 0.04,
+ 0.6 + math.sin(time * 0.25) * 0.03
+ )
+ end
+end)
+
+print("🌙 CHILL NIGHT MODE ĐÃ BẬT")
+print("🌌 Bầu trời đêm aurora")
+print("🧱 Block chỉ tối nhẹ - vẫn thấy rõ mọi thứ")
+print("💫 Không gian chill hoàn hảo")
+print("🎯 Không tối mù mịt - vẫn chơi game được")
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- Biến trạng thái
+local isEnabled = false
+local stopConnection = nil
+
+-- Tạo GUI thông báo
+local function createNotification(text, color)
+    local screenGui = player:WaitForChild("PlayerGui")
+    
+    local notification = Instance.new("ScreenGui", screenGui)
+    notification.Name = "AnimationNotification"
+    notification.ResetOnSpawn = false
+    
+    local frame = Instance.new("Frame", notification)
+    frame.Size = UDim2.new(0, 250, 0, 60)
+    frame.Position = UDim2.new(0.5, -125, 0.2, 0)
+    frame.BackgroundColor3 = color
+    frame.BackgroundTransparency = 0.2
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+    
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = color
+    stroke.Thickness = 2
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.Text = text
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.BackgroundTransparency = 1
+    
+    -- Animation hiện ra
+    frame.Position = UDim2.new(0.5, -125, 0.15, 0)
+    frame.Transparency = 1
+    
+    game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3), {
+        Position = UDim2.new(0.5, -125, 0.2, 0),
+        Transparency = 0.2
+    }):Play()
+    
+    -- Tự động xóa sau 2 giây
+    task.delay(2, function()
+        if notification then
+            game:GetService("TweenService"):Create(frame, TweenInfo.new(0.3), {
+                Position = UDim2.new(0.5, -125, 0.15, 0),
+                Transparency = 1
+            }):Play()
+            
+            task.delay(0.3, function()
+                notification:Destroy()
+            end)
+        end
+    end)
+    
+    return notification
+end
+
+-- Hàm bật auto-stop
+local function enableAutoStop()
+    if isEnabled then return end
+    isEnabled = true
+    
+    -- Hiển thị thông báo
+    createNotification("✅ ANIMATION: ĐÃ Dừng\nMọi animation sẽ bị dừng", Color3.fromRGB(40, 180, 80))
+    
+    -- Kết nối liên tục stop animation
+    stopConnection = RunService.Heartbeat:Connect(function()
+        local character = player.Character
+        if not character then return end
+        
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        
+        -- Dừng tất cả animation
+        for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+            track:Stop()
+        end
+    end)
+    
+    print("Animation Stop: ĐÃ BẬT")
+end
+
+-- Hàm tắt auto-stop
+local function disableAutoStop()
+    if not isEnabled then return end
+    isEnabled = false
+    
+    -- Hiển thị thông báo
+    createNotification("❌ ANIMATION: ĐÃ TẮT\nAnimation hoạt động bình thường", Color3.fromRGB(220, 60, 60))
+    
+    if stopConnection then
+        stopConnection:Disconnect()
+        stopConnection = nil
+    end
+    
+    print("Animation Stop: ĐÃ TẮT")
+end
+
+-- Toggle auto-stop
+local function toggleAutoStop()
+    if isEnabled then
+        disableAutoStop()
+    else
+        enableAutoStop()
+    end
+end
+
+-- Xử lý phím Ctrl+K
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    
+    if input.KeyCode == Enum.KeyCode.K then
+        local ctrlPressed = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or 
+                           UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+        
+        if ctrlPressed then
+            toggleAutoStop()
+        end
+    end
+end)
